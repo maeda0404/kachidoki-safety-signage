@@ -4,6 +4,9 @@
   const C = window.SIGNAGE_CONFIG;
   const $ = (id) => document.getElementById(id);
 
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+
   const IMAGES = {
     dry: ['./images/dry-warning.png', '乾燥注意報'],
     rainProbability: ['./images/rain-probability.png', '降水確率が高い'],
@@ -60,6 +63,155 @@
       99: '激しい雷雨'
     })[code] || '気象情報';
 
+  /**
+   * 通信状態表示を初期化する
+   */
+  function resetNetworkStyle() {
+    const network = $('network');
+
+    network.style.color = '';
+    network.style.backgroundColor = '';
+    network.style.borderColor = '';
+  }
+
+  /**
+   * 通信正常表示
+   */
+  function showNetworkNormal() {
+    const network = $('network');
+    const stale = $('stale');
+
+    resetNetworkStyle();
+
+    network.textContent = '● 通信正常';
+    network.className = 'ok';
+
+    stale.hidden = true;
+    stale.textContent = '';
+    stale.style.backgroundColor = '';
+    stale.style.color = '';
+  }
+
+  /**
+   * 1時間以上3時間未満の更新遅延表示
+   */
+  function showNetworkDelay() {
+    const network = $('network');
+    const stale = $('stale');
+
+    network.textContent = '● 更新遅延';
+    network.className = 'delay';
+
+    /*
+     * style.cssにdelayクラスがなくても黄色系で表示されるよう、
+     * 必要な色をapp.js側でも設定しています。
+     */
+    network.style.color = '#8a5700';
+    network.style.backgroundColor = '#fff3cd';
+    network.style.borderColor = '#d39e00';
+
+    stale.hidden = false;
+    stale.textContent =
+      'データ更新が遅延しています。取得済みの気象情報を表示しています';
+    stale.style.backgroundColor = '#b26a00';
+    stale.style.color = '#ffffff';
+  }
+
+  /**
+   * 3時間以上または取得失敗時の通信失敗表示
+   */
+  function showNetworkFailure(message = '最新情報を取得できていません') {
+    const network = $('network');
+    const stale = $('stale');
+
+    resetNetworkStyle();
+
+    network.textContent = '● 通信失敗';
+    network.className = 'ng';
+
+    stale.hidden = false;
+    stale.textContent = message;
+    stale.style.backgroundColor = '';
+    stale.style.color = '';
+  }
+
+  /**
+   * 3時間以上更新されていない場合、古い数値を非表示にする
+   */
+  function clearWeatherDisplay() {
+    data = null;
+
+    $('temperature').textContent = '--';
+    $('weatherLabel').textContent = '情報取得中';
+    $('rainProbability').textContent = '--%';
+    $('precipitation').textContent = '-- mm/h';
+    $('windSpeed').textContent = '-- m/s';
+    $('minTemperature').textContent = '--℃';
+    $('sunsetTime').textContent = '--:--';
+    $('generatedAt').textContent = '--';
+
+    $('activeAlerts').textContent = '該当情報を確認しています';
+    $('statusCard').className = '';
+    $('statusText').textContent = '確認中';
+
+    $('alertOverlay').hidden = true;
+  }
+
+  /**
+   * データの古さを判定する
+   *
+   * normal:
+   *   1時間未満
+   *
+   * delay:
+   *   1時間以上3時間未満
+   *
+   * failure:
+   *   3時間以上
+   */
+  function getDataFreshness(generatedAt) {
+    const generatedTime = new Date(generatedAt).getTime();
+
+    if (!Number.isFinite(generatedTime)) {
+      return {
+        status: 'failure',
+        ageMs: null,
+        message: 'データの生成時刻を確認できません'
+      };
+    }
+
+    const ageMs = Date.now() - generatedTime;
+
+    /*
+     * パソコンやデータ側の時計が多少前後していて、
+     * 未来時刻になった場合は0分として扱います。
+     */
+    const safeAgeMs = Math.max(0, ageMs);
+
+    if (safeAgeMs >= THREE_HOURS_MS) {
+      return {
+        status: 'failure',
+        ageMs: safeAgeMs,
+        message: 'データが3時間以上更新されていません'
+      };
+    }
+
+    if (safeAgeMs >= ONE_HOUR_MS) {
+      return {
+        status: 'delay',
+        ageMs: safeAgeMs,
+        message:
+          'データ更新が遅延しています。取得済みの気象情報を表示しています'
+      };
+    }
+
+    return {
+      status: 'normal',
+      ageMs: safeAgeMs,
+      message: ''
+    };
+  }
+
   function getActiveRules() {
     if (!data) return [];
 
@@ -104,7 +256,8 @@
     // 日没30分前から日没10分後は、毎時表示枠に関係なく即時表示
     const now = new Date();
     const sunset = new Date(weather.sunset);
-    const millisecondsUntilSunset = sunset.getTime() - now.getTime();
+    const millisecondsUntilSunset =
+      sunset.getTime() - now.getTime();
 
     if (
       Number.isFinite(millisecondsUntilSunset) &&
@@ -136,23 +289,33 @@
     const weather = data.weather;
     const activeRules = getActiveRules();
 
-    $('temperature').textContent = Number(weather.temperature).toFixed(1);
-    $('weatherLabel').textContent = getWeatherName(weather.weatherCode);
+    $('temperature').textContent =
+      Number(weather.temperature).toFixed(1);
+
+    $('weatherLabel').textContent =
+      getWeatherName(weather.weatherCode);
+
     $('rainProbability').textContent =
       `${Math.round(weather.rainProbability)}%`;
+
     $('precipitation').textContent =
       `${Number(weather.precipitation).toFixed(1)} mm/h`;
+
     $('windSpeed').textContent =
       `${Number(weather.windSpeed).toFixed(1)} m/s`;
+
     $('minTemperature').textContent =
       `${Number(weather.minTemperature).toFixed(1)}℃`;
+
     $('sunsetTime').textContent =
       new Intl.DateTimeFormat('ja-JP', {
         timeZone: 'Asia/Tokyo',
         hour: '2-digit',
         minute: '2-digit'
       }).format(new Date(weather.sunset));
-    $('generatedAt').textContent = formatDateTime(data.generatedAt);
+
+    $('generatedAt').textContent =
+      formatDateTime(data.generatedAt);
 
     $('activeAlerts').textContent = activeRules.length
       ? activeRules.map((key) => IMAGES[key][1]).join(' ／ ')
@@ -182,15 +345,23 @@
       return;
     }
 
+    /*
+     * キューの件数が変わった場合でも、
+     * imageIndexが範囲外にならないよう調整します。
+     */
+    imageIndex %= queue.length;
+
     if (Date.now() - lastRotationTime >= C.rotationMs) {
       imageIndex = (imageIndex + 1) % queue.length;
       lastRotationTime = Date.now();
     }
 
     const key = queue[imageIndex % queue.length];
+
     $('alertImage').src = IMAGES[key][0];
     $('alertImage').alt = IMAGES[key][1];
     $('overlayTitle').textContent = IMAGES[key][1];
+
     $('overlayCounter').textContent =
       queue.length > 1
         ? `${(imageIndex % queue.length) + 1}/${queue.length}`
@@ -201,37 +372,99 @@
 
   async function refreshData() {
     try {
-      const response = await fetch(`${C.dataUrl}?t=${Date.now()}`, {
-        cache: 'no-store'
-      });
+      const response = await fetch(
+        `${C.dataUrl}?t=${Date.now()}`,
+        {
+          cache: 'no-store'
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const nextData = await response.json();
-      const dataAge =
-        Date.now() - new Date(nextData.generatedAt).getTime();
 
-      if (!Number.isFinite(dataAge) || dataAge > C.staleMs) {
-        throw new Error('データが1時間以上更新されていません');
+      if (!nextData || !nextData.weather) {
+        throw new Error('気象データの内容を確認できません');
       }
 
+      const freshness = getDataFreshness(nextData.generatedAt);
+
+      /*
+       * 3時間以上更新されていない場合
+       *
+       * 古い数値は表示せず、通信失敗に切り替えます。
+       */
+      if (freshness.status === 'failure') {
+        clearWeatherDisplay();
+        showNetworkFailure(
+          '最新情報を取得できていません'
+        );
+
+        console.error(
+          new Error(freshness.message)
+        );
+
+        return;
+      }
+
+      /*
+       * 3時間未満ならデータを保持します。
+       *
+       * 1～3時間の場合も取得済みの数値を表示します。
+       */
       data = nextData;
-      $('network').textContent = '● 通信正常';
-      $('network').className = 'ok';
-      $('stale').hidden = true;
       render();
+
+      if (freshness.status === 'delay') {
+        showNetworkDelay();
+
+        console.warn(
+          freshness.message
+        );
+
+        return;
+      }
+
+      /*
+       * 1時間未満
+       */
+      showNetworkNormal();
     } catch (error) {
       console.error(error);
-      $('network').textContent = '● 通信失敗';
-      $('network').className = 'ng';
-      $('stale').hidden = false;
+
+      /*
+       * HTTPエラーやJSONエラーの場合は、
+       * 現在保持しているデータの古さを再確認します。
+       */
+      if (data && data.generatedAt) {
+        const currentFreshness =
+          getDataFreshness(data.generatedAt);
+
+        if (currentFreshness.status === 'normal') {
+          showNetworkFailure(
+            '最新情報の取得に一時的に失敗しました'
+          );
+          return;
+        }
+
+        if (currentFreshness.status === 'delay') {
+          showNetworkDelay();
+          return;
+        }
+      }
+
+      clearWeatherDisplay();
+      showNetworkFailure(
+        '最新情報を取得できていません'
+      );
     }
   }
 
   function fitToScreen() {
     const signage = $('signage');
+
     const scale = Math.min(
       window.innerWidth / 1920,
       window.innerHeight / 1080
@@ -239,24 +472,44 @@
 
     signage.style.transform = `scale(${scale})`;
     signage.style.position = 'absolute';
+
     signage.style.left =
-      `${Math.max(0, (window.innerWidth - 1920 * scale) / 2)}px`;
+      `${Math.max(
+        0,
+        (window.innerWidth - 1920 * scale) / 2
+      )}px`;
+
     signage.style.top =
-      `${Math.max(0, (window.innerHeight - 1080 * scale) / 2)}px`;
+      `${Math.max(
+        0,
+        (window.innerHeight - 1080 * scale) / 2
+      )}px`;
   }
 
   function tick() {
-    $('clock').textContent = formatDateTime(new Date());
+    $('clock').textContent =
+      formatDateTime(new Date());
+
     render();
     renderOverlay();
   }
 
-  window.addEventListener('resize', fitToScreen);
+  window.addEventListener(
+    'resize',
+    fitToScreen
+  );
 
   fitToScreen();
   refreshData();
   tick();
 
-  window.setInterval(tick, 1000);
-  window.setInterval(refreshData, C.refreshMs);
+  window.setInterval(
+    tick,
+    1000
+  );
+
+  window.setInterval(
+    refreshData,
+    C.refreshMs
+  );
 })();
