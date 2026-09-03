@@ -57,14 +57,14 @@ header h1 {
   font-size: 50px;
 }
 
-/* 日時と通信状態を横並びにする */
+/* 日時と通信状態の表示エリア */
 header > div {
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-/* 右上の日時を少し大きくする */
+/* 右上の日時 */
 #clock {
   display: inline-block;
   font-size: 40px;
@@ -77,10 +77,8 @@ header > div {
 /* 通信状態 */
 #network {
   padding: 5px 12px;
-
   font-size: 34px;
   white-space: nowrap;
-
   border: 4px solid;
   border-radius: 12px;
 }
@@ -101,7 +99,6 @@ header > div {
 #stale {
   color: #ffffff;
   background: #962020;
-
   font-size: 34px;
   text-align: center;
 }
@@ -124,40 +121,45 @@ header > div {
 }
 
 /*
-  左側の気象情報を少し右へ移動。
-  見出し・温度・天気をまとめて移動させる。
+  左側の気象情報の位置調整
+  見出し・温度・天気をまとめて配置
 */
 .hero > div:first-child {
-  padding-left: 72px;
+  min-width: 0;
+  padding-left: 34px;
 }
 
 .hero h2 {
   margin: 0;
   font-size: 36px;
+  line-height: 1.1;
 }
 
-/* 温度全体 */
+/* 温度表示全体 */
 .temp {
   display: flex;
   align-items: baseline;
   gap: 8px;
 
-  font-size: 80px;
+  margin: 2px 0 0;
+  font-size: 90px;
   line-height: 1;
   white-space: nowrap;
 }
 
 /* 温度の数値 */
 .temp b {
-  font-size: 245px;
-  line-height: 0.85;
+  font-size: 285px;
+  line-height: 0.8;
+  letter-spacing: -8px;
   font-variant-numeric: tabular-nums;
 }
 
 /* 天気の文字 */
 .hero p {
-  margin: 10px 0;
+  margin: 12px 0 0;
   font-size: 42px;
+  line-height: 1;
 }
 
 
@@ -297,7 +299,6 @@ footer p {
   position: fixed;
   inset: 0;
   z-index: 99;
-
   background: #073b78;
 }
 
@@ -308,3 +309,19 @@ footer p {
 }
 
 #alertOverlay > div {
+  position: absolute;
+  right: 25px;
+  bottom: 20px;
+
+  padding: 10px 20px;
+
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 12px;
+
+  font-size: 28px;
+}
+
+#alertOverlay[hidden] {
+  display: none;
+}
