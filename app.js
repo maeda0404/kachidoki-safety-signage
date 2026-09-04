@@ -212,7 +212,6 @@
     };
   }
 
-  function getActiveRules() {
   /**
    * 現在該当しているすべての注意情報を返す
    *
