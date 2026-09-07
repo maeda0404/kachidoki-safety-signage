@@ -4,6 +4,27 @@
   const C = window.SIGNAGE_CONFIG;
   const $ = (id) => document.getElementById(id);
 
+  // ▼▼▼ 追加：直近データのキャッシュ保存先（A案） ▼▼▼
+  const CACHE_KEY = 'kachidoki_safety_last';
+
+  function saveCache(d) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(d));
+    } catch (e) {
+      console.warn('キャッシュ保存に失敗', e);
+    }
+  }
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  // ▲▲▲ 追加ここまで ▲▲▲
+
   const IMAGES = {
     dry: ['./images/dry-warning.png', '乾燥注意報'],
     rainProbability: ['./images/rain-probability.png', '降水確率が高い'],
@@ -223,15 +244,39 @@
       }
 
       data = nextData;
+      saveCache(nextData); // ▼追加：取得成功したデータを保存
       $('network').textContent = '● 通信正常';
       $('network').className = 'ok';
       $('stale').hidden = true;
       render();
     } catch (error) {
       console.error(error);
-      $('network').textContent = '● 通信失敗';
-      $('network').className = 'ng';
-      $('stale').hidden = false;
+
+      // ▼▼▼ 変更：失敗時は直近データを残して表示する（A案） ▼▼▼
+      const cached = data || loadCache();
+
+      if (cached) {
+        data = cached;
+        render();
+
+        const genTime = new Intl.DateTimeFormat('ja-JP', {
+          timeZone: 'Asia/Tokyo',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(new Date(cached.generatedAt));
+
+        $('network').textContent = '● 更新遅延';
+        $('network').className = 'ng';
+        $('stale').hidden = false;
+        $('stale').textContent = `直近データを表示中（${genTime} 時点）`;
+      } else {
+        // 一度も取得できていない初回のみ、従来どおり通信失敗を表示
+        $('network').textContent = '● 通信失敗';
+        $('network').className = 'ng';
+        $('stale').hidden = false;
+        $('stale').textContent = '最新情報を取得できていません';
+      }
+      // ▲▲▲ 変更ここまで ▲▲▲
     }
   }
 
@@ -259,6 +304,11 @@
   window.addEventListener('resize', fitToScreen);
 
   fitToScreen();
+
+  // ▼追加：起動直後にキャッシュを描画（初回から確認中/「--」を回避）
+  data = loadCache();
+  if (data) render();
+
   refreshData();
   tick();
 
