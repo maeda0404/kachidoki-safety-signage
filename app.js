@@ -16,6 +16,11 @@
     thunder: ['./images/thunder.png', '雷注意報']
   };
 
+  // 即時表示（警報級・日没）に該当するルール
+  const IMMEDIATE_KEYS = ['landslide', 'heavyRain', 'wave', 'thunder', 'sunset'];
+  // 総合判定を「注意情報あり(danger)」にするルール
+  const DANGER_KEYS = ['landslide', 'heavyRain', 'wave', 'thunder'];
+
   let data = null;
   let imageIndex = 0;
   let lastRotationTime = 0;
@@ -61,7 +66,11 @@
       99: '激しい雷雨'
     })[code] || '気象情報';
 
-  function getActiveRules() {
+  /*
+   * 時刻に関係なく、現在成立している注意・警報をすべて返します。
+   * 総合判定と「発表・判定中の情報」に使用します。
+   */
+  function getMatchedRules() {
     if (!data) return [];
 
     const weather = data.weather;
@@ -69,67 +78,59 @@
     const immediate = [];
     const scheduled = [];
 
-    // 警報級は時刻に関係なく即時表示
-    if (warnings.landslide) {
-      immediate.push('landslide');
-    }
-
+    // 警報級（即時）
+    if (warnings.landslide) immediate.push('landslide');
     if (
       warnings.heavyRain ||
       weather.precipitation >= C.thresholds.heavyRainPerHour
     ) {
       immediate.push('heavyRain');
     }
+    if (warnings.wave) immediate.push('wave');
+    if (warnings.thunder) immediate.push('thunder');
 
-    if (warnings.wave) {
-      immediate.push('wave');
-    }
-
-    if (warnings.thunder) {
-      immediate.push('thunder');
-    }
-
-    // 注意情報は毎時00分から10分間に表示
-    if (weather.windSpeed >= C.thresholds.strongWind) {
-      scheduled.push('strongWind');
-    }
-
-    if (weather.minTemperature <= C.thresholds.lowTemperature) {
-      scheduled.push('lowTemperature');
-    }
-
-    if (warnings.dry) {
-      scheduled.push('dry');
-    }
-
-    if (weather.rainProbability >= C.thresholds.rainProbability) {
-      scheduled.push('rainProbability');
-    }
-
-    // 日没30分前から日没10分後は、毎時表示枠に関係なく即時表示
+    // 日没（即時・時間帯限定）
     const now = new Date();
     const sunset = new Date(weather.sunset);
-    const millisecondsUntilSunset = sunset.getTime() - now.getTime();
-
+    const msUntilSunset = sunset.getTime() - now.getTime();
     if (
-      Number.isFinite(millisecondsUntilSunset) &&
-      millisecondsUntilSunset <= 30 * 60 * 1000 &&
-      millisecondsUntilSunset >= -10 * 60 * 1000
+      Number.isFinite(msUntilSunset) &&
+      msUntilSunset <= 30 * 60 * 1000 &&
+      msUntilSunset >= -10 * 60 * 1000
     ) {
       immediate.push('sunset');
     }
 
+    // 注意情報
+    if (weather.windSpeed >= C.thresholds.strongWind) scheduled.push('strongWind');
+    if (weather.minTemperature <= C.thresholds.lowTemperature) {
+      scheduled.push('lowTemperature');
+    }
+    if (warnings.dry) scheduled.push('dry');
+    if (weather.rainProbability >= C.thresholds.rainProbability) {
+      scheduled.push('rainProbability');
+    }
+
+    return immediate.concat(scheduled);
+  }
+
+  /*
+   * 全画面の警告画像に表示するルールを返します。
+   * 警報級・日没は常時、注意情報は毎時00〜10分のみ。
+   */
+  function getOverlayRules() {
+    const matched = getMatchedRules();
+    const immediate = matched.filter((k) => IMMEDIATE_KEYS.includes(k));
     if (immediate.length > 0) {
       return immediate;
     }
 
-    const minute = Number(getJapanTimeParts(now).minute);
-
+    const minute = Number(getJapanTimeParts(new Date()).minute);
     if (
       minute >= C.scheduledStartMinute &&
       minute < C.scheduledEndMinute
     ) {
-      return scheduled;
+      return matched.filter((k) => !IMMEDIATE_KEYS.includes(k));
     }
 
     return [];
@@ -139,7 +140,7 @@
     if (!data) return;
 
     const weather = data.weather;
-    const activeRules = getActiveRules();
+    const matched = getMatchedRules();
 
     $('temperature').textContent = Number(weather.temperature).toFixed(1);
     $('weatherLabel').textContent = getWeatherName(weather.weatherCode);
@@ -159,27 +160,26 @@
       }).format(new Date(weather.sunset));
     $('generatedAt').textContent = formatDateTime(data.generatedAt);
 
-    $('activeAlerts').textContent = activeRules.length
-      ? activeRules.map((key) => IMAGES[key][1]).join(' ／ ')
+    // 総合判定・発表中情報は時刻に関係なく常時反映
+    $('activeAlerts').textContent = matched.length
+      ? matched.map((key) => IMAGES[key][1]).join(' ／ ')
       : '現在、サイネージ表示対象の注意情報はありません';
 
-    const hasDanger = activeRules.some((key) =>
-      ['landslide', 'heavyRain', 'thunder', 'wave'].includes(key)
-    );
+    const hasDanger = matched.some((key) => DANGER_KEYS.includes(key));
 
     $('statusCard').className = hasDanger
       ? 'danger'
-      : activeRules.length
+      : matched.length
         ? 'caution'
         : '';
 
-    $('statusText').textContent = activeRules.length
+    $('statusText').textContent = matched.length
       ? '注意情報あり'
       : '通常';
   }
 
   function renderOverlay() {
-    const queue = getActiveRules();
+    const queue = getOverlayRules();
     const overlay = $('alertOverlay');
 
     if (queue.length === 0) {
