@@ -32,7 +32,7 @@ WEATHER = (
     '&daily=temperature_2m_min,sunset'
     '&timezone=Asia%2FTokyo&forecast_days=2'
 )
-JMA = 'https://www.jma.go.jp/bosai/warning/data/warning/130010.json'
+JMA = 'https://www.jma.go.jp/bosai/warning/data/warning/130000.json'
 
 # 警報・注意報コード → サイネージのフラグ名
 # （警報・特別警報は上位扱い。L4危険警報は L3警報コードで実質カバーされる）
