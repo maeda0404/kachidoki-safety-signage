@@ -266,7 +266,7 @@
         }).format(new Date(cached.generatedAt));
 
         $('network').textContent = '● 更新遅延';
-        $('network').className = 'ng';
+        $('network').className = 'warn';
         $('stale').hidden = false;
         $('stale').textContent = `直近データを表示中（${genTime} 時点）`;
       } else {
