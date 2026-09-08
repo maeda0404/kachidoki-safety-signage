@@ -4,7 +4,7 @@
   const C = window.SIGNAGE_CONFIG;
   const $ = (id) => document.getElementById(id);
 
-  // ▼▼▼ 追加：直近データのキャッシュ保存先（A案） ▼▼▼
+  // 直近データのキャッシュ保存先（A案）
   const CACHE_KEY = 'kachidoki_safety_last';
 
   function saveCache(d) {
@@ -23,7 +23,6 @@
       return null;
     }
   }
-  // ▲▲▲ 追加ここまで ▲▲▲
 
   const IMAGES = {
     dry: ['./images/dry-warning.png', '乾燥注意報'],
@@ -32,15 +31,33 @@
     heavyRain: ['./images/heavy-rain.png', '大雨・浸水注意'],
     landslide: ['./images/landslide.png', '土砂災害警戒'],
     wave: ['./images/wave-warning.png', '波浪警報'],
+    stormSurge: ['./images/storm-surge.png', '高潮警報'],
+    stormSurgeAdvisory: ['./images/storm-surge-advisory.png', '高潮注意報'],
+    storm: ['./images/storm.png', '暴風警報'],
     sunset: ['./images/sunset.png', '日没注意'],
     strongWind: ['./images/strong-wind.png', '強風注意'],
     thunder: ['./images/thunder.png', '雷注意報']
   };
 
   // 即時表示（警報級・日没）に該当するルール
-  const IMMEDIATE_KEYS = ['landslide', 'heavyRain', 'wave', 'thunder', 'sunset'];
+  const IMMEDIATE_KEYS = [
+    'landslide',
+    'heavyRain',
+    'stormSurge',
+    'wave',
+    'storm',
+    'thunder',
+    'sunset'
+  ];
   // 総合判定を「注意情報あり(danger)」にするルール
-  const DANGER_KEYS = ['landslide', 'heavyRain', 'wave', 'thunder'];
+  const DANGER_KEYS = [
+    'landslide',
+    'heavyRain',
+    'stormSurge',
+    'wave',
+    'storm',
+    'thunder'
+  ];
 
   let data = null;
   let imageIndex = 0;
@@ -107,7 +124,17 @@
     ) {
       immediate.push('heavyRain');
     }
+    if (warnings.stormSurge) immediate.push('stormSurge');
     if (warnings.wave) immediate.push('wave');
+
+    // 暴風警報：警報フラグ、または風速が暴風しきい値以上で発火
+    if (
+      warnings.storm ||
+      weather.windSpeed >= C.thresholds.stormWind
+    ) {
+      immediate.push('storm');
+    }
+
     if (warnings.thunder) immediate.push('thunder');
 
     // 日没（即時・時間帯限定）
@@ -123,7 +150,18 @@
     }
 
     // 注意情報
-    if (weather.windSpeed >= C.thresholds.strongWind) scheduled.push('strongWind');
+    // 強風注意報：暴風警報が出ていないときだけ表示（上位が出たら引っ込む）
+    const stormActive =
+      warnings.storm || weather.windSpeed >= C.thresholds.stormWind;
+    if (!stormActive && weather.windSpeed >= C.thresholds.strongWind) {
+      scheduled.push('strongWind');
+    }
+
+    // 高潮注意報：高潮警報が出ていないときだけ表示
+    if (!warnings.stormSurge && warnings.stormSurgeAdvisory) {
+      scheduled.push('stormSurgeAdvisory');
+    }
+
     if (weather.minTemperature <= C.thresholds.lowTemperature) {
       scheduled.push('lowTemperature');
     }
@@ -244,7 +282,7 @@
       }
 
       data = nextData;
-      saveCache(nextData); // ▼追加：取得成功したデータを保存
+      saveCache(nextData);
       $('network').textContent = '● 通信正常';
       $('network').className = 'ok';
       $('stale').hidden = true;
@@ -252,7 +290,7 @@
     } catch (error) {
       console.error(error);
 
-      // ▼▼▼ 変更：失敗時は直近データを残して表示する（A案） ▼▼▼
+      // 失敗時は直近データを残して表示する（A案）
       const cached = data || loadCache();
 
       if (cached) {
@@ -276,7 +314,6 @@
         $('stale').hidden = false;
         $('stale').textContent = '最新情報を取得できていません';
       }
-      // ▲▲▲ 変更ここまで ▲▲▲
     }
   }
 
@@ -305,7 +342,7 @@
 
   fitToScreen();
 
-  // ▼追加：起動直後にキャッシュを描画（初回から確認中/「--」を回避）
+  // 起動直後にキャッシュを描画（初回から確認中/「--」を回避）
   data = loadCache();
   if (data) render();
 
