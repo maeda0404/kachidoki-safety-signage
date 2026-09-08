@@ -63,6 +63,44 @@
   let imageIndex = 0;
   let lastRotationTime = 0;
 
+  // ▼▼▼ 追加(A案)：警報取得ステータス表示 ▼▼▼
+  // #network の隣に動的生成するので index.html の編集は不要
+  function getWarnStatusEl() {
+    let el = document.getElementById('warnStatus');
+    if (!el) {
+      const network = $('network');
+      if (!network || !network.parentNode) return null;
+      el = document.createElement('span');
+      el.id = 'warnStatus';
+      // #network と同系統の見た目を流用
+      el.style.padding = '5px 12px';
+      el.style.fontSize = '34px';
+      el.style.whiteSpace = 'nowrap';
+      el.style.border = '4px solid';
+      el.style.borderRadius = '12px';
+      el.hidden = true;
+      network.parentNode.insertBefore(el, network.nextSibling);
+    }
+    return el;
+  }
+
+  // warningFetchError があるとき「警報情報を取得できていません」を表示。
+  // これにより warnings が全て false でも、それが「本当に警報なし」なのか
+  // 「取得失敗で false なだけ」なのかを現場が区別できる。
+  function updateWarnStatus() {
+    const el = getWarnStatusEl();
+    if (!el) return;
+
+    if (data && data.warningFetchError) {
+      el.textContent = '⚠ 警報情報を取得できていません';
+      el.className = 'warn';
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+  // ▲▲▲ 追加ここまで ▲▲▲
+
   const formatDateTime = (value) =>
     new Intl.DateTimeFormat('ja-JP', {
       timeZone: 'Asia/Tokyo',
@@ -235,6 +273,9 @@
     $('statusText').textContent = matched.length
       ? '注意情報あり'
       : '通常';
+
+    // 警報取得ステータス（取得失敗を隠さない）
+    updateWarnStatus();
   }
 
   function renderOverlay() {
