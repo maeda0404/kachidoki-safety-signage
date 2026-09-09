@@ -46,7 +46,6 @@
     'stormSurge',
     'wave',
     'storm',
-    'thunder',
     'sunset'
   ];
   // 総合判定を「注意情報あり(danger)」にするルール
