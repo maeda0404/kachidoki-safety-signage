@@ -26,7 +26,7 @@
     lowTemperature: ['./images/low-temperature.png', '低温・凍結注意'],
     heavyRain: ['./images/heavy-rain.png', '大雨・浸水注意'],
     wave: ['./images/wave-warning.png', '波浪警報'],
-    waveAdvisory: ['./images/wave-warning.png', '波浪注意報'],
+    waveAdvisory: ['./images/wave-advisory.png', '波浪注意報'],
     stormSurge: ['./images/storm-surge.png', '高潮警報'],
     stormSurgeAdvisory: ['./images/storm-surge-advisory.png', '高潮注意報'],
     storm: ['./images/storm.png', '暴風警報'],
